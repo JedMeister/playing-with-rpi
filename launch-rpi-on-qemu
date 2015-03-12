@@ -1,0 +1,48 @@
+#To work around memory issues I used both swap drive and a temp drive
+
+#on QEMU host
+cat>answer.file<<EOF
+n
+
+
+
+
+w
+EOF
+IMG_NAME="swap temp"
+for IMG in $IMG_NAME; do
+    IMG=/tmp/$IMG.img
+    dd if=/dev/zero of="$IMG" bs=1024 count=1048576
+    fdisk "$IMG" < answer.file
+done
+rm answer.file
+
+#this bit assumes that $IMG=/tmp/temp.img
+LOOP=$(echo $(kpartx -l "$IMG") | cut -d " " -f 1)
+kpartx -a $IMG
+mkfs.ext4 /dev/mapper/$LOOP
+kpartx -d $IMG
+
+#Now start QEMU
+qemu-system-arm \
+    -kernel zImage-3.10-3-jed \
+    -cpu arm1176 \
+    -m 256 \
+    -M versatilepb \
+    -no-reboot \
+    -append "root=/dev/sda2 rw vga=normal console=ttyAMA0s rootfstype=ext4" \
+    -hda raspbian-ua-netinst-firstboot.img \
+    -hdb /tmp/swap.img \
+    -hdc /tmp/temp.img \
+    -nographic \
+    -redir tcp:5022::22
+
+#FWIW I prefer to SSH in from a new terminal
+#e.g. ssh -p 5022 root@localhost
+
+#In RPi (QEMU guest)
+mkswap /dev/sdb1
+swapon /dev/sdb1
+umount /tmp
+mount /dev/sdc1 /tmp
+
