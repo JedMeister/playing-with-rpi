@@ -46,3 +46,77 @@ swapon /dev/sdb1
 umount /tmp
 mount /dev/sdc1 /tmp
 
+cat > ~/.bashrc.d/rpi-build << EOF
+export FAB_POOL=y
+export RELEASE=debian/wheezy
+export POOL_DIR=/turnkey/fab/pools/wheezy/
+export FAB_POOL_PATH=$POOL_DIR
+export FAB_ARCH=armhf
+export DISTRO=rpi
+EOF
+
+cat >> ~/.bashrc << "EOF"
+
+#If .bashrc is sourced then also source all .bashrc.d files
+if [ -d ~/.bashrc.d ]; then
+    for i in /root/.bashrc.d/* ; do
+        . $i
+    done
+fi
+unset i
+EOF
+
+cat > add-tkl-source-to-pool.sh << "EOF"
+#!/bin/bash
+REPOS="autoversion ccurl chanko confconsole deck deckdebuild fab inithooks pool pycurl-wrapper pyproject pythondialog repo shellinabox tklbam tklbam-duplicity tklbam-python-boto tklbam-squid turnkey-pylib turnkey-sysinfo turnkey-version useraufs verseek webmin webmin-tklbam"
+
+GIT_URL="https://github.com/turnkeylinux"
+POOL_DIR="/turnkey/fab/pools/wheezy"
+PUB_DIR="/turnkey/public"
+
+mkdir -p $PUB_DIR 
+for REPO in $REPOS; do
+    echo "processing $REPO"
+    cd $PUB_DIR
+    if [ -d $REPO ]; then
+        echo "local copy exists - updating..."
+        cd $REPO
+        git pull
+    else
+        echo "local copy doesn't exist - cloning..."
+        git clone $GIT_URL/$REPO
+        cd $REPO
+    fi
+    case $REPO in
+        "pythondialog")
+            TAG="2.7-1turnkey+4"
+            ;;
+        "turnkey-pylib")
+            echo "temp workaround for turnkey-pylib"
+            git revert -n 34c332db72d5c7dbeaccc88d1dcdc57846d5914a
+            TAG=$(git describe --abbrev=0)
+            git tag -d $TAG
+            ;;
+        *)
+            TAG=$(git describe --abbrev=0)
+            git tag -d $TAG
+            ;;
+    esac
+    
+    if [ ! -z $TAG ]; then
+        echo "(re)tagging... (with $TAG)"
+        git tag -a $TAG -m "comment"
+    fi
+    echo "Running pool-register & pool-get on repo"
+    cd $POOL_DIR
+    pool-gc # added this to make sure that source that was already registered would build correct version
+    pool-register $PUB_DIR/$REPO
+    if [ -z $NAME ]; then
+        NAME=$REPO
+    fi
+    pool-get . $NAME
+    unset NAME
+    unset TAG
+done
+EOF
+chmod +x add-tkl-source-to-pool.sh
