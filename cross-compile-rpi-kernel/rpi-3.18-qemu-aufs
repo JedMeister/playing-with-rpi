@@ -1,0 +1,653 @@
+
+echo 'APT::Default-Release "wheezy";' > /etc/apt/apt.conf
+cat > /etc/apt/sources.list.d/jessie.list << "EOF"
+deb http://http.debian.net/debian jessie main
+deb http://http.debian.net/debian jessie contrib
+# deb http://http.debian.net/debian jessie non-free
+EOF
+
+apt-get install -y patch build-essential bc ncurses-dev ia32-libs
+apt-get install -y -t jessie libc6 libc6-dev
+
+#RPi toolchain
+#See: http://www.raspberrypi.org/documentation/linux/kernel/building.md
+mkdir -p /opt/rpi/
+cd /opt/rpi/
+git clone git://github.com/raspberrypi/tools.git --depth 1
+echo 'PATH=$PATH:/opt/rpi/tools/arm-bcm2708/gcc-linaro-arm-linux-gnueabihf-raspbian-x64/bin' > /root/.bashrc.d/rpi-tools
+echo 'export CCPREFIX=arm-linux-gnueabihf-' >> /root/.bashrc.d/rpi-tools
+chmod +x /root/.bashrc.d/rpi-tools
+. /root/.bashrc.d/rpi-tools
+
+mkdir /root/kernel-qemu
+cd /root/kernel-qemu
+git clone -b rpi-3.18.y https://github.com/raspberrypi/linux.git --depth 1
+wget http://xecdesign.com/downloads/linux-qemu/linux-arm.patch
+patch -p1 -d linux/ < linux-arm.patch
+
+cd linux
+# download aufs source
+git clone -b aufs3.18.1+ git://aufs.git.sourceforge.net/gitroot/aufs/aufs3-standalone.git --depth 1
+cp -a aufs3-standalone/fs .
+cp aufs3-standalone/include/uapi/linux/aufs_type.h include/uapi/linux/
+
+# clean build directory
+make mrproper
+
+make ARCH=arm versatile_defconfig
+make ARCH=arm menuconfig
+#see http://xecdesign.com/compiling-a-kernel/ for options...
+
+make ARCH=arm
+make ARCH=arm INSTALL_MOD_PATH=../modules modules_install
+
+
+### Just make 3.18 QEMU kernel
+#restart
+cd /root/kernel-qemu/linux
+
+#reviw changes
+git clean -nd
+
+#clean up rpi kernel repo (back to vanilla)
+## Remove all untracked files and directories
+git clean -fd
+## Revert changes to modified files
+git reset --hard
+
+patch -p1 -d . < ../linux-arm.patch
+
+cd linux
+make ARCH=arm versatile_defconfig
+make ARCH=arm menuconfig
+#do config as per instructions...
+make ARCH=arm
+make ARCH=arm INSTALL_MOD_PATH=../modules modules_install
+
+#copy file out...
+cp  arch/arm/boot/zImage ../zImage-3.10-2-jed
+
+qemu-system-arm \
+    -kernel zImage-3.18-2-jed \
+    -cpu arm1176 \
+    -m 256 \
+    -M versatilepb \
+    -no-reboot \
+    -append "root=/dev/sda2 rw vga=normal console=ttyAMA0s
+    rootfstype=ext4" \
+    -hda raspbian-ua-netinst-firstboot.img \
+    -nographic \
+    -redir tcp:5022::22
+
+#Complains about vfat being unknown FS but suspect that may be issue with image 
+#(had to fscheck ext4 partition to get it to boot)
+#Otherwise all good!
+
+###############################################################
+#Now to get AuFS working!
+# before we go anyfurther make sure we copy out working config!
+
+echo 'APT::Default-Release "wheezy";' > /etc/apt/apt.conf
+cat > /etc/apt/sources.list.d/jessie.list << "EOF"
+deb http://http.debian.net/debian jessie main
+deb http://http.debian.net/debian jessie contrib
+# deb http://http.debian.net/debian jessie non-free
+EOF
+
+apt-get install -y patch build-essential bc ncurses-dev ia32-libs
+apt-get install -y -t jessie libc6 libc6-dev
+
+#RPi toolchain
+#See: http://www.raspberrypi.org/documentation/linux/kernel/building.md
+mkdir -p /opt/rpi/
+cd /opt/rpi/
+git clone git://github.com/raspberrypi/tools.git --depth 1
+echo 'PATH=$PATH:/opt/rpi/tools/arm-bcm2708/gcc-linaro-arm-linux-gnueabihf-raspbian-x64/bin' > /root/.bashrc.d/rpi-tools
+echo 'export CCPREFIX=arm-linux-gnueabihf-' >> /root/.bashrc.d/rpi-tools
+chmod +x /root/.bashrc.d/rpi-tools
+. /root/.bashrc.d/rpi-tools
+
+mkdir /root/kernel-qemu
+cd /root/kernel-qemu
+git clone -b rpi-3.18.y https://github.com/raspberrypi/linux.git --depth 1
+wget http://xecdesign.com/downloads/linux-qemu/linux-arm.patch
+patch -p1 -d linux/ < linux-arm.patch
+
+cd linux
+# download aufs source
+git clone -b aufs3.18.1+ git://aufs.git.sourceforge.net/gitroot/aufs/aufs3-standalone.git --depth 1
+cp -a aufs3-standalone/fs .
+cp aufs3-standalone/include/uapi/linux/aufs_type.h include/uapi/linux/
+
+# clean build directory
+make mrproper
+
+make ARCH=arm versatile_defconfig
+make ARCH=arm menuconfig
+#see http://xecdesign.com/compiling-a-kernel/ for options...
+
+make ARCH=arm
+make ARCH=arm INSTALL_MOD_PATH=../modules modules_install
+
+
+### Just make 3.18 QEMU kernel
+#restart
+cd /root/kernel-qemu/linux
+
+#reviw changes
+git clean -nd
+
+#clean up rpi kernel repo (back to vanilla)
+## Remove all untracked files and directories
+git clean -fd
+## Revert changes to modified files
+git reset --hard
+
+patch -p1 -d . < ../linux-arm.patch
+
+cd linux
+make ARCH=arm versatile_defconfig
+make ARCH=arm menuconfig
+#do config as per instructions...
+make ARCH=arm
+make ARCH=arm INSTALL_MOD_PATH=../modules modules_install
+
+#copy file out...
+cp  arch/arm/boot/zImage ../zImage-3.10-2-jed
+
+qemu-system-arm \
+    -kernel zImage-3.18-2-jed \
+    -cpu arm1176 \
+    -m 256 \
+    -M versatilepb \
+    -no-reboot \
+    -append "root=/dev/sda2 rw vga=normal console=ttyAMA0s
+    rootfstype=ext4" \
+    -hda raspbian-ua-netinst-firstboot.img \
+    -nographic \
+    -redir tcp:5022::22
+
+#Complains about vfat being unknown FS but suspect that may be issue with image 
+#(had to fscheck ext4 partition to get it to boot)
+#Otherwise all good!
+
+###############################################################
+#Now to get AuFS working!
+# before we go anyfurther make sure we copy out working config!
+
+cp .config ../config-qemu-xecdesign
+
+###########################################################
+#In RPi:
+## 
+apt-get -y install busybox-static e2fsck-static
+
+mkdir initramfs
+cd initramfs
+
+# create required directories
+mkdir -p aufs bin dev etc lib proc rootfs rw sbin sys usr/{bin,sbin}
+touch etc/mdev.conf
+
+# populate dev
+mknod -m 622 dev/console c 5 1
+mknod -m 622 dev/tty0 c 4 0
+
+# install busybox
+cp /bin/busybox bin/
+ln -s busybox bin/sh
+
+# install e2fsck
+
+cp /sbin/e2fsck.static sbin/e2fsck.static
+
+#don't copy this manually into init, variables are escaped so they don't expand while redirecting output to init
+cat > init <<EOF
+#!/bin/sh
+
+mount -t proc none /proc
+mount -t sysfs none /sys
+
+/bin/busybox --install -s
+
+# create mtab so that fsck won't complain
+/bin/ln -sf /proc/mounts /etc/mtab
+
+# wait for slow sdcards
+/bin/sleep 5
+
+# populate /dev
+/sbin/mdev -s
+
+ROOTDEV=""
+ROOTFSTYPE="ext4"
+ROOTFSOPTS="noatime"
+RWFS=""
+RWFSTYPE=""
+RWFSOPTS="noatime"
+AUFS=false
+AUFSCK=false
+
+for x in \$(/bin/cat /proc/cmdline); do 
+    case \$x in 
+    root=*)
+        ROOTDEV=\${x#root=}
+        ;;
+    rootfstype=*)
+        ROOTFSTYPE=\${x#rootfstype=}
+        ;;
+    rootfsopts=*)
+        ROOTFSOPTS=\${x#rootfsopts=}
+        ;;
+    rwfs=*)
+        RWFS=\${x#rwfs=}
+        ;;
+    rwfstype=*)
+        RWFSTYPE=\${x#rwfstype=}
+        ;;
+    rwfsopts=*)
+        RWFSOPTS=\${x#rwfsopts=}
+        ;;
+    aufsck)
+        AUFSCK=true
+        ;;
+    esac
+done
+
+# check root device
+if [ ! -b "\${ROOTDEV}" ]; then 
+    echo "Root partition \${ROOTDEV} missing"
+    exec /bin/sh 
+    exit 0 
+fi 
+
+# fsck root partition
+echo "Checking root partition \${ROOTDEV}"
+/sbin/e2fsck.static -y \${ROOTDEV}
+
+# mount root
+echo -n "Mounting root partition \${ROOTDEV} "
+mount -t \${ROOTFSTYPE} -o ro,\${ROOTFSOPTS} \${ROOTDEV} /rootfs
+if [ \$? -ne 0 ]; then
+    echo "failed"
+    exec /bin/sh 
+    exit 0 
+else
+    echo "OK"
+fi 
+
+# check for rw partition
+if [ "\${RWFS}" = "tmpfs" ]; then
+    RWFS="aufs-tmpfs"
+    RWFSTYPE="tmpfs"
+    RWFSOPTS="rw"
+else
+    if [ ! -b "\${RWFS}" ]; then
+        echo "RW partition \${RWFS} missing"
+   RWFS="" 
+    fi
+fi
+
+if \${AUFSCK} && [ -b "\${RWFS}" ]; then
+    # fsck rw partition
+    echo "Checking RW partition \${ROOTDEV}"
+    /sbin/e2fsck.static -y \${RWFS}
+fi
+
+if [ -n "\${RWFS}" ]; then 
+    # mount rw partition
+    echo -n "Mounting RW partition \${RWFS} "
+    mount -o \${RWFSOPTS} -t \${RWFSTYPE} \${RWFS} /rw
+    if [ \$? -ne 0 ]; then
+        echo "failed"
+        AUFS=false 
+    else
+        echo "OK"
+        AUFS=true
+    fi
+else
+    AUFS=false
+fi
+
+if \${AUFS}; then
+    # mount aufs partition
+    echo -n "Mounting AUFS "
+    mount -t aufs -o dirs=/rw:/rootfs=ro aufs /aufs
+    if [ \$? -ne 0 ]; then
+        echo "failed"
+        AUFS=false
+    else
+        echo "OK"
+    fi
+fi
+
+if \${AUFS}; then
+    # mount aufs  as root partition
+    # test for mount points on aufs file system
+    [  -d /aufs/ro ] || /bin/mkdir /aufs/ro
+    [  -d /aufs/rw ] || /bin/mkdir /aufs/rw
+
+    # move RO and RW inside aufs 
+    mount --move /rw /aufs/rw
+    mount --move /rootfs /aufs/ro
+    # cleanup
+    umount /proc 
+    umount /sys 
+
+    # Boot the real thing
+    exec switch_root /aufs /sbin/init 
+else
+    # revert to normal rootfs
+    # remount root rw
+    mount -o remount,rw \${ROOTDEV}
+    # cleanup
+    umount /proc 
+    umount /sys 
+
+    # Boot the real thing
+    exec switch_root /rootfs /sbin/init 
+fi
+
+echo "Failed to switch_root, dropping to a shell" 
+exec /bin/sh
+EOF
+
+# make init executable
+chmod a+x init
+
+# create the initramfs image
+find . | cpio -H newc -o > ../initramfs.cpio
+cp  /proc/config.gz ~/config.gz 
+#cp: cannot stat `/proc/config.gz': No such file or directory
+
+######################################################################
+##Back in dev machine
+
+#COPY initramfs.cpio into linux dir
+
+cp -a aufs3-standalone/fs .
+cp aufs3-standalone/include/uapi/linux/aufs_type.h include/uapi/linux/
+
+patch -p1 < aufs3-standalone/aufs3-kbuild.patch
+patch -p1 < aufs3-standalone/aufs3-base.patch
+patch -p1 < aufs3-standalone/aufs3-mmap.patch
+patch -p1 < aufs3-standalone/aufs3-standalone.patch
+
+#copy back in config
+cp ../config-qemu-xecdesign .config
+
+#adjust
+sed -i 's/.*CONFIG_BLK_DEV_INITRD.*/CONFIG_BLK_DEV_INITRD=y/g' .config
+sed -i 's/.*CONFIG_INITRAMFS_SOURCE.*/CONFIG_INITRAMFS_SOURCE="initramfs.cpio"/g' .config
+
+cat >> .config <<EOF
+CONFIG_AUFS_FS=y
+CONFIG_AUFS_BRANCH_MAX_127=y
+# CONFIG_AUFS_BRANCH_MAX_511 is not set
+# CONFIG_AUFS_BRANCH_MAX_1023 is not set
+# CONFIG_AUFS_BRANCH_MAX_32767 is not set
+CONFIG_AUFS_SBILIST=y
+# CONFIG_AUFS_HNOTIFY is not set
+# CONFIG_AUFS_EXPORT is not set
+# CONFIG_AUFS_RDU is not set
+# CONFIG_AUFS_SP_IATTR is not set
+# CONFIG_AUFS_SHWH is not set
+# CONFIG_AUFS_BR_RAMFS is not set
+# CONFIG_AUFS_BR_FUSE is not set
+# CONFIG_AUFS_BR_HFSPLUS is not set
+CONFIG_AUFS_BDEV_LOOP=y
+# CONFIG_AUFS_DEBUG is not set
+CONFIG_INITRAMFS_ROOT_UID=0
+CONFIG_INITRAMFS_ROOT_GID=0
+CONFIG_INITRAMFS_COMPRESSION_NONE=y
+# CONFIG_INITRAMFS_COMPRESSION_GZIP is not set
+EOF
+
+make ARCH=arm oldconfig
+make ARCH=arm -j3 -k
+make ARCH=arm modules_install INSTALL_MOD_PATH=../
+
+cp  arch/arm/boot/zImage ../zImage-3.10-3-jed
+
+#then start QEMU as per above (but with new image)
+
+#And it all appears to work! YAY! :)
+
+cp .config ../config-qemu-xecdesign
+
+###########################################################
+#In RPi:
+## 
+apt-get -y install busybox-static e2fsck-static
+
+mkdir initramfs
+cd initramfs
+
+# create required directories
+mkdir -p aufs bin dev etc lib proc rootfs rw sbin sys usr/{bin,sbin}
+touch etc/mdev.conf
+
+# populate dev
+mknod -m 622 dev/console c 5 1
+mknod -m 622 dev/tty0 c 4 0
+
+# install busybox
+cp /bin/busybox bin/
+ln -s busybox bin/sh
+
+# install e2fsck
+
+cp /sbin/e2fsck.static sbin/e2fsck.static
+
+#don't copy this manually into init, variables are escaped so they don't expand while redirecting output to init
+cat > init <<EOF
+#!/bin/sh
+
+mount -t proc none /proc
+mount -t sysfs none /sys
+
+/bin/busybox --install -s
+
+# create mtab so that fsck won't complain
+/bin/ln -sf /proc/mounts /etc/mtab
+
+# wait for slow sdcards
+/bin/sleep 5
+
+# populate /dev
+/sbin/mdev -s
+
+ROOTDEV=""
+ROOTFSTYPE="ext4"
+ROOTFSOPTS="noatime"
+RWFS=""
+RWFSTYPE=""
+RWFSOPTS="noatime"
+AUFS=false
+AUFSCK=false
+
+for x in \$(/bin/cat /proc/cmdline); do 
+    case \$x in 
+    root=*)
+        ROOTDEV=\${x#root=}
+        ;;
+    rootfstype=*)
+        ROOTFSTYPE=\${x#rootfstype=}
+        ;;
+    rootfsopts=*)
+        ROOTFSOPTS=\${x#rootfsopts=}
+        ;;
+    rwfs=*)
+        RWFS=\${x#rwfs=}
+        ;;
+    rwfstype=*)
+        RWFSTYPE=\${x#rwfstype=}
+        ;;
+    rwfsopts=*)
+        RWFSOPTS=\${x#rwfsopts=}
+        ;;
+    aufsck)
+        AUFSCK=true
+        ;;
+    esac
+done
+
+# check root device
+if [ ! -b "\${ROOTDEV}" ]; then 
+    echo "Root partition \${ROOTDEV} missing"
+    exec /bin/sh 
+    exit 0 
+fi 
+
+# fsck root partition
+echo "Checking root partition \${ROOTDEV}"
+/sbin/e2fsck.static -y \${ROOTDEV}
+
+# mount root
+echo -n "Mounting root partition \${ROOTDEV} "
+mount -t \${ROOTFSTYPE} -o ro,\${ROOTFSOPTS} \${ROOTDEV} /rootfs
+if [ \$? -ne 0 ]; then
+    echo "failed"
+    exec /bin/sh 
+    exit 0 
+else
+    echo "OK"
+fi 
+
+# check for rw partition
+if [ "\${RWFS}" = "tmpfs" ]; then
+    RWFS="aufs-tmpfs"
+    RWFSTYPE="tmpfs"
+    RWFSOPTS="rw"
+else
+    if [ ! -b "\${RWFS}" ]; then
+        echo "RW partition \${RWFS} missing"
+   RWFS="" 
+    fi
+fi
+
+if \${AUFSCK} && [ -b "\${RWFS}" ]; then
+    # fsck rw partition
+    echo "Checking RW partition \${ROOTDEV}"
+    /sbin/e2fsck.static -y \${RWFS}
+fi
+
+if [ -n "\${RWFS}" ]; then 
+    # mount rw partition
+    echo -n "Mounting RW partition \${RWFS} "
+    mount -o \${RWFSOPTS} -t \${RWFSTYPE} \${RWFS} /rw
+    if [ \$? -ne 0 ]; then
+        echo "failed"
+        AUFS=false 
+    else
+        echo "OK"
+        AUFS=true
+    fi
+else
+    AUFS=false
+fi
+
+if \${AUFS}; then
+    # mount aufs partition
+    echo -n "Mounting AUFS "
+    mount -t aufs -o dirs=/rw:/rootfs=ro aufs /aufs
+    if [ \$? -ne 0 ]; then
+        echo "failed"
+        AUFS=false
+    else
+        echo "OK"
+    fi
+fi
+
+if \${AUFS}; then
+    # mount aufs  as root partition
+    # test for mount points on aufs file system
+    [  -d /aufs/ro ] || /bin/mkdir /aufs/ro
+    [  -d /aufs/rw ] || /bin/mkdir /aufs/rw
+
+    # move RO and RW inside aufs 
+    mount --move /rw /aufs/rw
+    mount --move /rootfs /aufs/ro
+    # cleanup
+    umount /proc 
+    umount /sys 
+
+    # Boot the real thing
+    exec switch_root /aufs /sbin/init 
+else
+    # revert to normal rootfs
+    # remount root rw
+    mount -o remount,rw \${ROOTDEV}
+    # cleanup
+    umount /proc 
+    umount /sys 
+
+    # Boot the real thing
+    exec switch_root /rootfs /sbin/init 
+fi
+
+echo "Failed to switch_root, dropping to a shell" 
+exec /bin/sh
+EOF
+
+# make init executable
+chmod a+x init
+
+# create the initramfs image
+find . | cpio -H newc -o > ../initramfs.cpio
+cp  /proc/config.gz ~/config.gz 
+#cp: cannot stat `/proc/config.gz': No such file or directory
+
+######################################################################
+##Back in dev machine
+
+#COPY initramfs.cpio into linux dir
+
+cp -a aufs3-standalone/fs .
+cp aufs3-standalone/include/uapi/linux/aufs_type.h include/uapi/linux/
+
+patch -p1 < aufs3-standalone/aufs3-kbuild.patch
+patch -p1 < aufs3-standalone/aufs3-base.patch
+patch -p1 < aufs3-standalone/aufs3-mmap.patch
+patch -p1 < aufs3-standalone/aufs3-standalone.patch
+
+#copy back in config
+cp ../config-qemu-xecdesign .config
+
+#adjust
+sed -i 's/.*CONFIG_BLK_DEV_INITRD.*/CONFIG_BLK_DEV_INITRD=y/g' .config
+sed -i 's/.*CONFIG_INITRAMFS_SOURCE.*/CONFIG_INITRAMFS_SOURCE="initramfs.cpio"/g' .config
+
+cat >> .config <<EOF
+CONFIG_AUFS_FS=y
+CONFIG_AUFS_BRANCH_MAX_127=y
+# CONFIG_AUFS_BRANCH_MAX_511 is not set
+# CONFIG_AUFS_BRANCH_MAX_1023 is not set
+# CONFIG_AUFS_BRANCH_MAX_32767 is not set
+CONFIG_AUFS_SBILIST=y
+# CONFIG_AUFS_HNOTIFY is not set
+# CONFIG_AUFS_EXPORT is not set
+# CONFIG_AUFS_RDU is not set
+# CONFIG_AUFS_SP_IATTR is not set
+# CONFIG_AUFS_SHWH is not set
+# CONFIG_AUFS_BR_RAMFS is not set
+# CONFIG_AUFS_BR_FUSE is not set
+# CONFIG_AUFS_BR_HFSPLUS is not set
+CONFIG_AUFS_BDEV_LOOP=y
+# CONFIG_AUFS_DEBUG is not set
+CONFIG_INITRAMFS_ROOT_UID=0
+CONFIG_INITRAMFS_ROOT_GID=0
+CONFIG_INITRAMFS_COMPRESSION_NONE=y
+# CONFIG_INITRAMFS_COMPRESSION_GZIP is not set
+EOF
+
+make ARCH=arm oldconfig
+make ARCH=arm -j3 -k
+make ARCH=arm modules_install INSTALL_MOD_PATH=../
+
+cp  arch/arm/boot/zImage ../zImage-3.10-3-jed
+
+#then start QEMU as per above (but with new image)
+
+#And it all appears to work! YAY! :)
+

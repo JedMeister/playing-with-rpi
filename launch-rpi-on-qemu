@@ -1,6 +1,6 @@
 #To work around memory issues I used both swap drive and a temp drive
 
-#on QEMU host
+#on QEMU host - yes the blank lines are important!
 cat>answer.file<<EOF
 n
 
@@ -68,7 +68,7 @@ EOF
 
 cat > add-tkl-source-to-pool.sh << "EOF"
 #!/bin/bash
-REPOS="autoversion ccurl chanko confconsole deck deckdebuild fab inithooks pool pycurl-wrapper pyproject pythondialog repo shellinabox tklbam tklbam-duplicity tklbam-python-boto tklbam-squid turnkey-pylib turnkey-sysinfo turnkey-version useraufs verseek webmin webmin-tklbam"
+REPOS="autoversion ccurl chanko confconsole deck deckdebuild fab hubdns inithooks pool pycurl-wrapper pyproject pythondialog repo shellinabox tklbam tklbam-duplicity tklbam-python-boto tklbam-squid turnkey-pylib turnkey-sysinfo turnkey-version useraufs verseek webmin webmin-tklbam"
 
 GIT_URL="https://github.com/turnkeylinux"
 POOL_DIR="/turnkey/fab/pools/wheezy"
@@ -95,6 +95,16 @@ for REPO in $REPOS; do
             echo "temp workaround for turnkey-pylib"
             git revert -n 34c332db72d5c7dbeaccc88d1dcdc57846d5914a
             TAG=$(git describe --abbrev=0)
+            git tag -d $TAG
+            ;;
+        "tklbam-squid")make clean && make
+            #latest tag is 2.7.STABLE9-2.1turnkey
+            TAG="2.7.STABLE9-2.1turnkey+25"
+            ;;
+        "tklbam-python-boto")
+            #tklbam-python-boto correct tag version exists but isn't
+            #   annotated tag
+            TAG="2.3.0-2turnkey"
             git tag -d $TAG
             ;;
         *)

@@ -1,0 +1,100 @@
+#initially I just rsynced to an existing rpi SD card (appearing as sdc)
+
+#first time:
+mkdir -p /media/pi-sd/
+mount /dev/sdc2 /media/pi-sd/
+mkdir -p /media/pi-sd/boot
+mount /dev/sdc1 /media/pi-sd/boot/
+
+#to unmount:
+umount /media/pi-sd/boot
+umount /media/pi-sd/
+
+#to remount
+mount /dev/sdc2 /media/pi-sd/
+mount /dev/sdc1 /media/pi-sd/boot/
+
+
+The following packages will be REMOVED:
+  libraspberrypi-bin libraspberrypi0 raspberrypi-bootloader
+The following NEW packages will be installed:
+  raspberrypi-bootloader-nokernel
+
+
+
+#to rsync files from qemu vm guest:
+rsync --delete -Hac -v -e "ssh -p 5022" root@192.168.1.140:/turnkey/fab/products/core/build/root.patched/ /media/pi-sd
+
+#Add -D switch! (it's same as --devices & --specials)
+
+#rsync --archive --devices --specials --hard-links --acls --xattrs --sparse --verbose
+
+
+cat > /media/pi-sd/etc/fstab <<EOF
+/dev/mmcblk0p1 /boot vfat defaults 0 2
+/dev/mmcblk0p2 / ext4 errors=remount-ro,noatime 0 1
+EOF
+
+#this is probably not strictly required but makes it eaiser if peeps
+# want to enable sound
+cat >> /media/pi-sd/etc/modules << EOF
+# Remove the "#" from the start of the following line to enable sound
+#snd-bcm2835
+EOF
+
+cat > /media/pi-sd/boot/cmdline.txt << EOF
+dwc_otg.lpm_enable=0 console=ttyUSB0,115200 kgdboc=ttyUSB0,115200 root=/dev/mmcblk0p2 rootfstype=ext4 rootwait
+EOF
+
+cat > /media/pi-sd/boot/config.txt << EOF
+# RaspberryPi boot config.txt
+# Example file provided by TurnKey Linux 
+# http://turnkeylinux.org
+
+# Set GPU RAM usage as low as possible as this is a headless server
+# minimum is 16; max is 192, 448 or 944 (depending on which RPi you have)
+gpu_mem=16
+
+# Uncomment if you get no picture on HDMI for a default "safe" mode
+#hdmi_safe=1
+
+# Uncomment this if your display has a black border of unused pixels visible
+# and your display can output without overscan.
+#disable_overscan=1
+
+# Uncomment the following to adjust overscan. Use positive numbers if console
+# goes off screen, and negative if there is too much border.
+#overscan_left=20
+#overscan_right=20
+#overscan_top=20
+#overscan_bottom=20
+
+# Uncomment to force a console size. By default it will be display's size minus
+# overscan.
+#framebuffer_width=1280
+#framebuffer_height=720
+
+# Uncomment if an HDMI display is not detected and composite is being output.
+#hdmi_force_hotplug=1
+
+# Uncomment to force a specific HDMI mode (this will force VGA).
+#hdmi_group=1
+#hdmi_mode=1
+
+# Uncomment to force an HDMI mode rather than DVI. This can make audio work in
+# DMT (computer monitor) modes.
+#hdmi_drive=2
+
+# Uncomment to increase signal to HDMI, if you have interference, blanking, or
+# no display.
+#config_hdmi_boost=4
+
+# Uncomment for composite PAL
+#sdtv_mode=2
+
+# Uncomment to overclock the ARM. 700 MHz is the default (RPi-1).
+#arm_freq=800
+
+# For more options, see http://elinux.org/RPi_config.txt
+EOF
+

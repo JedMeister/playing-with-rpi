@@ -1,0 +1,22 @@
+#Commandline to boot QEMU as a daemon
+#
+#Works well; only issue is that you still need to wait for the guest VM
+# to boot up but no obvious way to know when that's happened...
+
+qemu-system-arm \
+-kernel zImage-3.10-3-jed \
+-cpu arm1176  \
+-m 256    \
+-M versatilepb \
+-no-reboot   \
+-append "root=/dev/sda2 rw vga=normal console=ttyAMA0s rootfstype=ext4"\
+-hda raspbian-ua-netinst-firstboot.img  \
+-hdb /tmp/swap.img \
+-hdc /tmp/temp.img  \
+-redir tcp:5022::22 \
+-daemonize \
+-vnc 0.0.0.0:1
+
+#The vnc line is needed with daemoize; otherwsie it will complain about
+# no output device....
+

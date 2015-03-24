@@ -1,0 +1,152 @@
+#Start with TKL Core - amd64 recommended but should theoretically work
+# on i386 too. Created on v13.0 (Wheezy based)
+#
+#All instructions are to be run on the host computer unless otherwise
+# specified
+
+##Install QEMU and some other tools we'll need
+
+#first add wheezy backports:
+cat > /etc/apt/sources.list.d/wheezy-backports.list << "EOF"
+deb http://ftp.debian.org/debian/ wheezy-backports main contrib non-free
+EOF
+
+apt-get update && apt-get install -y xz-utils kpartx dosfstools binfmt-support -t wheezy-backports qemu qemu-user-static
+
+#Note: binfmt-support & qemu-user-static provide non-native chroot support
+# To get non-native chroot working with RPi you also need to mount the
+# image and copy in the QEMU bin (inside the chroot)
+
+#make a working dir and enter it
+mkdir qemu-vm && cd qemu-vm
+
+#Download net-install image (so we can built minimalist image instead of 
+# using standard bloated Raspbian image with X etc...)
+# Note latest version is v1.0.6 but I have previously used v1.0.5
+#
+wget https://github.com/debian-pi/raspbian-ua-netinst/releases/download/v1.0.6/raspbian-ua-netinst-v1.0.6.img.xz
+xzcat raspbian-ua-netinst-v1.0.6.img.xz > raspbian-ua-netinst.img
+#currently v1.0.6 is latest but v
+
+#We need to make it so it will run on QEMU
+#
+#Option: instead of this next bit the script from github repo can be used:
+# "raspbian-ua-netinst-qemu-prep.sh"
+#
+curl http://pastebin.com/raw.php?i=sqtQ19Ci > raspbian-ua-netinst-qemu-prep.dirty
+#stupid pastebin - even the 'raw' copy has win line endings... fix that!
+cat raspbian-ua-netinst-qemu-prep.dirty | tr -d '\r' > raspbian-ua-netinst-qemu-prep.sh
+rm raspbian-ua-netinst-qemu-prep.dirty
+
+#Now run it
+chmod +x raspbian-ua-netinst-qemu-prep.sh
+./raspbian-ua-netinst-qemu-prep.sh raspbian-ua-netinst.img
+
+#Resize img file
+qemu-img resize raspbian-ua-netinst.img 8G
+
+#download QEMU kernel
+# I have compiled a QEMU one that also includes AuFS so will update this
+# line to include that but for now...
+wget http://www.xecdesign.com/downloads/linux-qemu/kernel-qemu
+
+#Now launch netinstall to create our minimalist base image
+qemu-system-arm \
+    -kernel kernel-qemu \
+    -initrd installer-qemu.cpio \
+    -cpu arm1176 \
+    -m 256 \
+    -M versatilepb \
+    -no-reboot \
+    -append "root=/dev/sda1 rw vga=normal console=ttyAMA0" \
+    -hda raspbian-ua-netinst.img \
+    -nographic
+
+#Let that run through. It will take a while and exit when finished
+#
+#Now we should have a minimalist RPi SD card image
+
+#We need to make a few mods to get it to run nicely in QEMU on a headless server
+#First list partitions:
+kpartx -l raspbian-ua-netinst.img
+
+#Then mount as loopback
+kpartx -a raspbian-ua-netinst.img
+
+#now mount specific partition loop0p2 in my case
+# FWIW should always be loopNp2 where N is usually 0 or 1
+mount /dev/mapper/loop0p2 /mnt
+
+cat > /mnt/etc/udev/rules.d/90-qemu.rules << "EOF"
+echo 'KERNEL=="sda", SYMLINK+="mmcblk0"'
+echo 'KERNEL=="sda?", SYMLINK+="mmcblk0p%n"'
+echo 'KERNEL=="sda2", SYMLINK+="root"'
+EOF
+
+cat > /mnt/etc/modprobe.d/blacklist << "EOF"
+blacklist snd-bcm2835
+EOF
+
+#A couple of other bits that were needed for v1.0.5 
+#appears they may not be needed in v1.0.6+ (so commented out)
+#echo "T0:23:respawn:/sbin/getty -L ttyAMA0 9600 vt100" >> /mnt/etc/inittab
+#echo "ttyAMA0" >> /mnt/etc/securetty
+
+#unmount image:
+umount /mnt
+kpartx -d raspbian-ua-netinst.img
+
+#To work around memory issues I used both swap drive and a temp drive
+# (make them in /tmp on host so that they are actually RAM disks)
+#This assumes that they don't already exist and that you want them 1GB
+cat>answer.file<<EOF
+n
+
+
+
+
+w
+EOF
+IMG_NAME="swap temp"
+for IMG in $IMG_NAME; do
+    IMG=/tmp/$IMG.img
+    dd if=/dev/zero of="$IMG" bs=1024 count=1048576
+    fdisk "$IMG" < answer.file
+done
+rm answer.file
+
+#this bit assumes that $IMG=/tmp/temp.img
+LOOP=$(echo $(kpartx -l "$IMG") | cut -d " " -f 1)
+kpartx -a $IMG
+mkfs.ext4 /dev/mapper/$LOOP
+kpartx -d $IMG
+
+#Now start QEMU RPi OS
+qemu-system-arm \
+    -kernel zImage-3.10-3-jed \
+    -cpu arm1176 \
+    -m 256 \
+    -M versatilepb \
+    -no-reboot \
+    -append "root=/dev/sda2 rw vga=normal console=ttyAMA0s rootfstype=ext4" \
+    -hda raspbian-ua-netinst.img \
+    -hdb /tmp/swap.img \
+    -hdc /tmp/temp.img \
+    -nographic \
+    -redir tcp:5022::22
+
+#FWIW I prefer to SSH in from a new terminal
+#e.g. ssh -p 5022 root@localhost
+
+#In RPi (QEMU guest)
+mkswap /dev/sdb1
+swapon /dev/sdb1
+umount /tmp
+mount /dev/sdc1 /tmp
+
+#RPi system should now be running nicely in QEMU with:
+#1GB of swap (really host RAM)
+#1GB of /tmp (really host RAM)
+#
+#If you instead want the QEMU process to run as a daemon; please see 
+# "daemonise-qemu"
