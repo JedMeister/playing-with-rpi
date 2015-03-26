@@ -18,7 +18,7 @@ apt-get update && apt-get install -y xz-utils kpartx dosfstools binfmt-support -
 # image and copy in the QEMU bin (inside the chroot)
 
 #make a working dir and enter it
-mkdir qemu-vm && cd qemu-vm
+mkdir qemu-vm && cd qemu-vm/turnkey/fab/deckdebuilds/
 
 #Download net-install image (so we can built minimalist image instead of 
 # using standard bloated Raspbian image with X etc...)
