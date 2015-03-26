@@ -11,13 +11,19 @@ But if you find someting useful; awesome! :)
 FWIW these files are potentially useful (and have been tidied):
 
 raspbian-ua-netinst-qemu-prep.sh 
+
 &#35; a copy of a script by https://github.com/dhanar10
 
 QEMU-setup
+
 &#35; instructions on setting up QEMU on TKL Core host 
+
 &#35; and creating a basic RPi VM running a # minimalist 
+
 &#35; Raspbian; inc workaround for limited RAM and poor RAM
+
 &#35; managment (I initially had issues running out of /tmp)
 
 daemonise-qemu
+
 &#35; command for launching QEMU as a headless daemon
