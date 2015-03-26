@@ -19,5 +19,10 @@ and creating a basic RPi VM running a # minimalist
 Raspbian; inc workaround for limited RAM and poor RAM
 managment (I initially had issues running out of /tmp)
 
+#work-around-ram-issues scripts (host and guest)
+&#35; simple scripts to create host tmp & swap drives 
+and mount them in VM
+
 #daemonise-qemu
 &#35; command for launching QEMU as a headless daemon
+- assumes that you are using the tmp & swap drives as per above
