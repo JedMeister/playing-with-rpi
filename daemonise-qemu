@@ -1,10 +1,11 @@
-#Commandline to boot QEMU as a daemon
+#Commandline to boot QEMU as a daemon 
+# - tested on TKL Core amd64 (v13.1) using QEMU from wheezy-backports
 #
 #Works well; only issue is that you still need to wait for the guest VM
 # to boot up but no obvious way to know when that's happened...
 
 qemu-system-arm \
--kernel zImage-3.10-3-jed \
+-kernel kernel-3.10_qemu_aufs.img \
 -cpu arm1176  \
 -m 256    \
 -M versatilepb \
